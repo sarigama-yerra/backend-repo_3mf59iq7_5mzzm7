@@ -73,6 +73,9 @@ def list_products(
     color: Optional[str] = None,
     is_new: Optional[bool] = Query(None, alias="new"),
     best: Optional[bool] = Query(None, alias="best"),
+    gender: Optional[str] = None,
+    material: Optional[str] = None,
+    sort: Optional[str] = None,  # price_asc | price_desc | popularity_desc
     limit: int = 60
 ):
     q = {}
@@ -93,8 +96,30 @@ def list_products(
         q["is_new"] = is_new
     if best is not None:
         q["is_best_seller"] = best
+    if gender:
+        q["gender"] = gender
+    if material:
+        q["material"] = material
 
-    docs = get_documents("shoeproduct", q, limit)
+    # Sorting
+    sort_spec = None
+    if sort == "price_asc":
+        sort_spec = ("price", 1)
+    elif sort == "price_desc":
+        sort_spec = ("price", -1)
+    elif sort == "popularity_desc":
+        sort_spec = ("popularity", -1)
+
+    # Use low-level find to support sort, then limit
+    if db is None:
+        docs = []
+    else:
+        cursor = db["shoeproduct"].find(q)
+        if sort_spec:
+            cursor = cursor.sort([sort_spec])
+        cursor = cursor.limit(limit)
+        docs = list(cursor)
+
     return [to_str_id(d) for d in docs]
 
 @app.get("/api/products/{product_id}")
@@ -144,24 +169,36 @@ def seed_data():
     count_products = db["shoeproduct"].count_documents({}) if db else 0
     added_p = 0
     if count_products == 0:
-        sample_products: List[Shoeproduct] = []
+        # Multiple images per product (gallery); popularity, gender, material
         base_imgs = {
             "Nike": [
                 "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1200&auto=format&fit=crop",
             ],
             "Jordan": [
                 "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1200&auto=format&fit=crop",
             ],
             "Adidas": [
                 "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1200&auto=format&fit=crop",
             ],
             "Puma": [
                 "https://images.unsplash.com/photo-1542291026-787b19a2f5b6?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1200&auto=format&fit=crop",
             ],
             "Gucci": [
                 "https://images.unsplash.com/photo-1584735175315-9d5df6c7e8a0?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1200&auto=format&fit=crop",
             ],
         }
+        genders = ["Men", "Women", "Unisex"]
+        materials = ["Leather", "Mesh", "Knit", "Suede"]
         for b in brands:
             for idx in range(1, 7):
                 p = Shoeproduct(
@@ -176,6 +213,9 @@ def seed_data():
                     is_best_seller=idx % 2 == 0,
                     rating=4.5,
                     reviews_count=120 + idx,
+                    gender=genders[(idx + len(b)) % 3],
+                    material=materials[(idx + len(b)) % len(materials)],
+                    popularity=500 - idx * 5,
                 )
                 create_document("shoeproduct", p)
                 added_p += 1

@@ -21,11 +21,15 @@ class Shoeproduct(BaseModel):
     colors: List[str] = Field(default_factory=list, description="Available color names")
     sizes: List[int] = Field(default_factory=list, description="Available sizes (EU/US simplified)")
     description: Optional[str] = Field(None)
-    images: List[str] = Field(default_factory=list, description="Image URLs")
+    images: List[str] = Field(default_factory=list, description="Image URLs (ordered for gallery/360)")
     is_new: bool = Field(default=False)
     is_best_seller: bool = Field(default=False)
     rating: float = Field(default=4.5, ge=0, le=5)
     reviews_count: int = Field(default=0, ge=0)
+    # New attributes for richer filtering and merchandising
+    gender: Literal["Men", "Women", "Unisex"] = Field(default="Unisex")
+    material: Optional[str] = Field(default=None, description="Primary upper material, e.g., Leather, Mesh, Knit")
+    popularity: int = Field(default=0, ge=0, description="Derived score for sorting by popularity")
 
 class Orderitem(BaseModel):
     product_id: str
